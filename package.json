@@ -1,0 +1,52 @@
+{
+	"author": {
+		"name": "Baptiste Pillot",
+		"email": "baptiste@pillot.fr"
+	},
+	"dependencies": {
+		"@fastify/cookie": "^11.0",
+		"@fastify/formbody": "^8.0",
+		"@fastify/multipart": "^9.0",
+		"@fastify/session": "^11.0",
+		"@itrocks/request-response": "latest",
+		"fastify": "~5.2",
+		"qs": "^6.13"
+	},
+	"description": "",
+	"devDependencies": {
+		"@types/node": "^22.10",
+		"@types/qs": "^6.9",
+		"typescript": "^5.6"
+	},
+	"engines": {
+		"node": ">=18"
+	},
+	"exports": {
+		"import": "./esm/fastify.js",
+		"require": "./cjs/fastify.js"
+	},
+	"files": [
+		"LICENSE",
+		"README.md",
+		"*/*.d.ts",
+		"*/*.js"
+	],
+	"homepage": "https://it.rocks",
+	"keywords": [
+		"backend",
+		"it.rocks"
+	],
+	"license": "ISC",
+	"name": "@itrocks/fastify",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/itrocks-ts/fastify.git"
+	},
+	"scripts": {
+		"build": "npm run build:cjs && npm run build:esm",
+		"build:cjs": "tsc -p tsconfig.cjs.json",
+		"build:esm": "tsc -p tsconfig.esm.json"
+	},
+	"types": "./esm/fastify.d.ts",
+	"version": "0.0.1"
+}
