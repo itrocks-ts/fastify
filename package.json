@@ -12,7 +12,7 @@
 		"fastify": "~5.2",
 		"qs": "^6.13"
 	},
-	"description": "",
+	"description": "Converts Fastify requests to it.rocks agnostic requests and responses back to Fastify",
 	"devDependencies": {
 		"@types/node": "^22.10",
 		"@types/qs": "^6.9",
@@ -48,5 +48,5 @@
 		"build:esm": "tsc -p tsconfig.esm.json"
 	},
 	"types": "./esm/fastify.d.ts",
-	"version": "0.0.2"
+	"version": "0.0.3"
 }
