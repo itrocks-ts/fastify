@@ -48,5 +48,5 @@
 		"build:esm": "tsc -p tsconfig.esm.json"
 	},
 	"types": "./esm/fastify.d.ts",
-	"version": "0.0.3"
+	"version": "0.0.4"
 }
