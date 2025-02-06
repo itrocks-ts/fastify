@@ -69,10 +69,8 @@ export class FastifyServer
 	constructor(public config: FastifyConfig)
 	{}
 
-	async httpCall(
-		originRequest: FastifyRequest<{ Params: Record<string, string> }>,
-		finalResponse: FastifyReply
-	) {
+	async httpCall(originRequest: FastifyRequest<{ Params: Record<string, string> }>, finalResponse: FastifyReply)
+	{
 		const request = await fastifyRequest(originRequest)
 		const dot     = request.path.lastIndexOf('.') + 1
 		if ((dot > request.path.length - 6) && !request.path.includes('./')) {
