@@ -90,7 +90,7 @@ export class FastifyServer
 		return fastifyResponse(finalResponse, await this.config.execute(request))
 	}
 
-	run()
+	async run()
 	{
 		const server = fastify({ trustProxy: true })
 
@@ -111,7 +111,7 @@ export class FastifyServer
 		server.post  ('/*', httpCall)
 		server.put   ('/*', httpCall)
 
-		server.listen({ port: this.config.port }).then()
+		await server.listen({ port: this.config.port })
 
 		console.log('server is listening on http://localhost:' + this.config.port)
 	}
