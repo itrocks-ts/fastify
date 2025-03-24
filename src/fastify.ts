@@ -6,8 +6,11 @@ import { assetResponse, Headers }       from '@itrocks/request-response'
 import { Method, mimeTypes }            from '@itrocks/request-response'
 import { RecursiveStringObject }        from '@itrocks/request-response'
 import { Request, Response }            from '@itrocks/request-response'
+import { SortedArray }                  from '@itrocks/sorted-array'
 import { fastify }                      from 'fastify'
 import { FastifyReply, FastifyRequest } from 'fastify'
+import { readFile }                     from 'node:fs/promises'
+import { dirname, normalize }           from 'node:path'
 import { parse }                        from 'qs'
 
 export type FastifyConfig = {
@@ -66,8 +69,26 @@ export function fastifyResponse(fastifyResponse: FastifyReply, response: Respons
 export class FastifyServer
 {
 
+	scannedFrontScripts = new SortedArray<string>()
+
 	constructor(public config: FastifyConfig)
-	{}
+	{
+	}
+
+	async addImportsToFrontScripts(fromScript: string)
+	{
+		const basePath = dirname(fromScript)
+		const content  = (await readFile(fromScript)).toString()
+		const matches  = [...content.matchAll(/from\s+['"](.+\.js)['"]/g)]
+		matches.push(...content.matchAll(/import\s+['"](.+\.js)['"]/g))
+		matches.push(...content.matchAll(/import\(['"](.+\.js)['"]\)/g))
+		matches.forEach(match => {
+			const frontScript = normalize(basePath + '/' + match[1]).slice(this.config.assetPath.length)
+			if (!this.config.frontScripts.includes(frontScript)) {
+				this.config.frontScripts.push(frontScript)
+			}
+		})
+	}
 
 	async httpCall(originRequest: FastifyRequest<{ Params: Record<string, string> }>, finalResponse: FastifyReply)
 	{
@@ -83,7 +104,12 @@ export class FastifyServer
 				const filePath = (request.path === '/favicon.ico') ? this.config.favicon : request.path
 				const mimeType = mimeTypes.get(fileExtension)
 				if (mimeType) {
-					return fastifyResponse(finalResponse, await assetResponse(request, this.config.assetPath + filePath, mimeType))
+					const fullPath = this.config.assetPath + filePath
+					if (['js', 'ts'].includes(fileExtension) && !this.scannedFrontScripts.includes(fullPath)) {
+						this.scannedFrontScripts.push(fullPath)
+						await this.addImportsToFrontScripts(fullPath)
+					}
+					return fastifyResponse(finalResponse, await assetResponse(request, fullPath, mimeType))
 				}
 			}
 		}

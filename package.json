@@ -9,6 +9,7 @@
 		"@fastify/multipart": "^9.0",
 		"@fastify/session": "^11.0",
 		"@itrocks/request-response": "latest",
+		"@itrocks/sorted-array": "latest",
 		"fastify": "~5.2",
 		"qs": "^6.13"
 	},
