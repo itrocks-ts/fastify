@@ -19,6 +19,7 @@ export type FastifyConfig = {
 	favicon:      string
 	frontScripts: Array<string>
 	port:         number
+	scriptCalls:  Array<string>
 	secret:       string
 	store:        SessionStore
 }
@@ -82,8 +83,16 @@ export class FastifyServer
 		const matches  = [...content.matchAll(/from\s+['"](.+\.js)['"]/g)]
 		matches.push(...content.matchAll(/import\s+['"](.+\.js)['"]/g))
 		matches.push(...content.matchAll(/import\(['"](.+\.js)['"]\)/g))
+		this.config.scriptCalls.forEach(scriptCall => {
+			matches.push(...content.matchAll(new RegExp(scriptCall + '\\([\'"](.+\\.js)[\'"]', 'g')))
+		})
 		matches.forEach(match => {
-			const frontScript = normalize(basePath + '/' + match[1]).slice(this.config.assetPath.length)
+			const fileName = normalize(
+				match[1].startsWith('/node_modules/')
+					? (this.config.assetPath + match[1])
+					: (basePath + '/' + match[1])
+			)
+			const frontScript = fileName.slice(this.config.assetPath.length)
 			if (!this.config.frontScripts.includes(frontScript)) {
 				this.config.frontScripts.push(frontScript)
 			}
