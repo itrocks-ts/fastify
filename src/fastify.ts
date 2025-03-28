@@ -84,7 +84,7 @@ export class FastifyServer
 		matches.push(...content.matchAll(/import\s+['"](.+\.js)['"]/g))
 		matches.push(...content.matchAll(/import\(['"](.+\.js)['"]\)/g))
 		this.config.scriptCalls.forEach(scriptCall => {
-			matches.push(...content.matchAll(new RegExp(scriptCall + '\\([\'"](.+\\.js)[\'"]', 'g')))
+			matches.push(...content.matchAll(RegExp(scriptCall + '\\([\'"](.+\\.js)[\'"]', 'g')))
 		})
 		matches.forEach(match => {
 			const fileName = normalize(
