@@ -8,6 +8,7 @@ import { RecursiveStringObject }        from '@itrocks/request-response'
 import { Request, Response }            from '@itrocks/request-response'
 import { SortedArray }                  from '@itrocks/sorted-array'
 import { fastify }                      from 'fastify'
+import { FastifyError }                 from 'fastify'
 import { FastifyReply, FastifyRequest } from 'fastify'
 import { readFile }                     from 'node:fs/promises'
 import { dirname, normalize }           from 'node:path'
@@ -99,6 +100,25 @@ export class FastifyServer
 		})
 	}
 
+	errorHandler(error: FastifyError, request: FastifyRequest, reply: FastifyReply)
+	{
+		console.error(error)
+		if (error.validation) {
+			reply.send({
+				error: 'Bad Request',
+				message: 'Invalid request.',
+				statusCode: 400
+			})
+		}
+		else {
+			reply.send({
+				error: 'Internal Server Error',
+				message: 'Something went wrong. We are working on it.',
+				statusCode: 500
+			})
+		}
+	}
+
 	async httpCall(originRequest: FastifyRequest<{ Params: Record<string, string> }>, finalResponse: FastifyReply)
 	{
 		const request = await fastifyRequest(originRequest)
@@ -145,6 +165,8 @@ export class FastifyServer
 		server.get   ('/*', httpCall)
 		server.post  ('/*', httpCall)
 		server.put   ('/*', httpCall)
+
+		server.setErrorHandler(this.errorHandler)
 
 		await server.listen({ port: this.config.port })
 
