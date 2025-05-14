@@ -10,7 +10,7 @@
 		"@fastify/session": "^11.0",
 		"@itrocks/request-response": "latest",
 		"@itrocks/sorted-array": "latest",
-		"fastify": "~5.2",
+		"fastify": "^5.3",
 		"qs": "^6.13"
 	},
 	"description": "Converts Fastify requests to it.rocks agnostic requests and responses back to Fastify",
@@ -49,5 +49,5 @@
 		"build:esm": "tsc -p tsconfig.esm.json"
 	},
 	"types": "./esm/fastify.d.ts",
-	"version": "0.0.12"
+	"version": "0.0.13"
 }
