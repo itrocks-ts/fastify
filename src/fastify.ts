@@ -1,18 +1,24 @@
-import { fastifyCookie }                from '@fastify/cookie'
-import { fastifyFormbody }              from '@fastify/formbody'
-import { fastifyMultipart }             from '@fastify/multipart'
-import { fastifySession, SessionStore } from '@fastify/session'
-import { assetResponse, Headers }       from '@itrocks/request-response'
-import { Method, mimeTypes }            from '@itrocks/request-response'
-import { RecursiveStringObject }        from '@itrocks/request-response'
-import { Request, Response }            from '@itrocks/request-response'
-import { SortedArray }                  from '@itrocks/sorted-array'
-import { fastify }                      from 'fastify'
-import { FastifyError }                 from 'fastify'
-import { FastifyReply, FastifyRequest } from 'fastify'
-import { readFile }                     from 'node:fs/promises'
-import { dirname, normalize }           from 'node:path'
-import { parse }                        from 'qs'
+import { fastifyCookie }        from '@fastify/cookie'
+import { fastifyFormbody }      from '@fastify/formbody'
+import { fastifyMultipart }     from '@fastify/multipart'
+import { fastifySession }       from '@fastify/session'
+import { SessionStore }         from '@fastify/session'
+import { assetResponse }        from '@itrocks/request-response'
+import { Headers }              from '@itrocks/request-response'
+import { Method, mimeTypes }    from '@itrocks/request-response'
+import { RecursiveValueObject } from '@itrocks/request-response'
+import { Request }              from '@itrocks/request-response'
+import { RequestFile }          from '@itrocks/request-response'
+import { Response }             from '@itrocks/request-response'
+import { SortedArray }          from '@itrocks/sorted-array'
+import { fastify }              from 'fastify'
+import { FastifyError }         from 'fastify'
+import { FastifyReply }         from 'fastify'
+import { FastifyRequest }       from 'fastify'
+import { readFile }             from 'node:fs/promises'
+import { dirname }              from 'node:path'
+import { normalize }            from 'node:path'
+import { parse }                from 'qs'
 
 export type FastifyConfig = {
 	assetPath:    string
@@ -27,22 +33,12 @@ export type FastifyConfig = {
 
 export async function fastifyRequest(request: FastifyRequest<{ Params: Record<string, string> }>)
 {
-	const data = (request.body ?? request.query) as RecursiveStringObject
-	const files: Record<string, Buffer> = {}
+	const data = request.isMultipart()
+		? await multiPartData(request.body ?? request.query)
+		: ((request.body ?? request.query) as RecursiveValueObject)
 	const params = { ...request.params }
 	const path   = '/' + request.params['*']
 	delete params['*']
-
-	if (request.isMultipart()) {
-		for await (const part of request.parts()) {
-			if (part.type === 'field') {
-				data[part.fieldname] = part.value as string
-			}
-			if (part.type === 'file') {
-				files[part.filename] = await part.toBuffer()
-			}
-		}
-	}
 
 	return new Request(
 		request.method as Method,
@@ -53,7 +49,6 @@ export async function fastifyRequest(request: FastifyRequest<{ Params: Record<st
 		request.headers as Headers,
 		params,
 		data,
-		files,
 		request.session,
 		request
 	)
@@ -151,7 +146,7 @@ export class FastifyServer
 
 		server.register(fastifyCookie)
 		server.register(fastifyFormbody, { parser: str => parse(str, { allowDots: true }) })
-		server.register(fastifyMultipart)
+		server.register(fastifyMultipart, { attachFieldsToBody: true, limits: { fileSize: 1e9 }})
 		server.register(fastifySession, {
 			cookie:            { maxAge: 30 * 24 * 60 * 60 * 1000, sameSite: 'strict', secure: false },
 			cookieName:        'itrSid',
@@ -173,4 +168,17 @@ export class FastifyServer
 		console.log('server is listening on http://localhost:' + this.config.port)
 	}
 
+}
+
+async function multiPartData(data: any)
+{
+	const result = {} as RecursiveValueObject
+	for (const field of Object.values(data) as any) {
+		if (field.type === 'file') {
+			result[field.fieldname] = new RequestFile(field.filename, await field.toBuffer())
+			continue
+		}
+		result[field.fieldname] = field.value
+	}
+	return result
 }
