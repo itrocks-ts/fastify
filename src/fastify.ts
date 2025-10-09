@@ -165,7 +165,11 @@ export class FastifyServer
 
 		await server.listen({ port: this.config.port })
 
-		console.log('server is listening on http://localhost:' + this.config.port)
+		console.log(
+			'[@itrocks/fastify]'
+			+ ' ' + new Date().toTimeString().split(' ')[0]
+			+ ' - Server is listening on http://localhost:' + this.config.port
+		)
 	}
 
 }
