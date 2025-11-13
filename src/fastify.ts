@@ -25,6 +25,7 @@ export type FastifyConfig = {
 	execute:      (request: Request) => Promise<Response>
 	favicon:      string
 	frontScripts: Array<string>
+	host:         string
 	port:         number
 	scriptCalls:  Array<string>
 	secret:       string
@@ -163,7 +164,7 @@ export class FastifyServer
 
 		server.setErrorHandler(this.errorHandler)
 
-		await server.listen({ port: this.config.port })
+		await server.listen({ host: this.config.host, port: this.config.port })
 
 		console.log(
 			'[@itrocks/fastify]'
