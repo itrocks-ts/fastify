@@ -34,9 +34,11 @@ export type FastifyConfig = {
 
 export async function fastifyRequest(request: FastifyRequest<{ Params: Record<string, string> }>)
 {
-	const data = request.isMultipart()
-		? await multiPartData(request.body ?? request.query)
-		: ((request.body ?? request.query) as RecursiveValueObject)
+	const data = Object.assign(
+		{},
+		request.isMultipart() ? await multiPartData(request.body) : request.body,
+		request.query
+	)
 	const params = { ...request.params }
 	const path   = '/' + request.params['*']
 	delete params['*']
