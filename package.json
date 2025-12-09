@@ -6,18 +6,18 @@
 	"dependencies": {
 		"@fastify/cookie": "^11.0",
 		"@fastify/formbody": "^8.0",
-		"@fastify/multipart": "^9.0",
-		"@fastify/session": "^11.0",
+		"@fastify/multipart": "^9.3",
+		"@fastify/session": "^11.1",
 		"@itrocks/request-response": "latest",
 		"@itrocks/sorted-array": "latest",
-		"fastify": "^5.3",
-		"qs": "^6.13"
+		"fastify": "^5.6",
+		"qs": "^6.14"
 	},
 	"description": "Converts Fastify requests to it.rocks agnostic requests and responses back to Fastify",
 	"devDependencies": {
-		"@types/node": "^22.10",
-		"@types/qs": "^6.9",
-		"typescript": "~5.8"
+		"@types/node": "^24.10",
+		"@types/qs": "^6.14",
+		"typescript": "~5.9"
 	},
 	"engines": {
 		"node": ">=18"
@@ -49,5 +49,5 @@
 		"build:esm": "tsc -p tsconfig.esm.json"
 	},
 	"types": "./esm/fastify.d.ts",
-	"version": "0.0.17"
+	"version": "0.0.18"
 }
