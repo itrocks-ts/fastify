@@ -26,6 +26,7 @@ export type FastifyConfig = {
 	favicon:      string
 	frontScripts: Array<string>
 	host:         string
+	manifest?:    string
 	port:         number
 	scriptCalls:  Array<string>
 	secret:       string
@@ -128,7 +129,8 @@ export class FastifyServer
 				|| request.path.startsWith('/front/')
 				|| this.config.frontScripts.includes(request.path)
 			) {
-				const filePath = (request.path === '/favicon.ico') ? this.config.favicon : request.path
+				const filePath = (request.path === '/favicon.png') ? this.config.favicon :
+					((request.path === '/manifest.json') ? (this.config.manifest ?? request.path) : request.path)
 				const mimeType = mimeTypes.get(fileExtension)
 				if (mimeType) {
 					const fullPath = this.config.assetPath + filePath
