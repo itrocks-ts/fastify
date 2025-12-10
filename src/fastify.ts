@@ -98,7 +98,7 @@ export class FastifyServer
 		})
 	}
 
-	errorHandler(error: FastifyError, request: FastifyRequest, reply: FastifyReply)
+	errorHandler(error: FastifyError, _request: FastifyRequest, reply: FastifyReply)
 	{
 		console.error(error)
 		if (error.validation) {
