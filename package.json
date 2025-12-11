@@ -35,7 +35,16 @@
 	"homepage": "https://it.rocks",
 	"keywords": [
 		"backend",
-		"it.rocks"
+		"bridge",
+		"fastify",
+		"http",
+		"integration",
+		"it.rocks",
+		"middleware",
+		"request",
+		"request-response",
+		"response",
+		"server"
 	],
 	"license": "ISC",
 	"name": "@itrocks/fastify",
@@ -49,5 +58,5 @@
 		"build:esm": "tsc -p tsconfig.esm.json"
 	},
 	"types": "./esm/fastify.d.ts",
-	"version": "0.1.0"
+	"version": "0.1.1"
 }
