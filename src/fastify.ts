@@ -87,12 +87,22 @@ export class FastifyServer
 			matches.push(...content.matchAll(RegExp(scriptCall + '\\([\'"](.+\\.js)[\'"]', 'g')))
 		})
 		matches.forEach(match => {
-			const fileName = normalize(
-				match[1].startsWith('/node_modules/')
-					? (this.config.assetPath + match[1])
-					: (basePath + '/' + match[1])
+			const matchPath = match[1]
+			const fileName  = normalize(
+				matchPath.startsWith('@itrocks/')
+					? (this.config.assetPath + '/' + matchPath)
+					: (
+				matchPath.startsWith('/lib/')
+					? (this.config.assetPath + matchPath)
+					: (
+				matchPath.startsWith('/node_modules/')
+					? (this.config.assetPath + '/lib/' + matchPath.slice(14))
+					: (basePath + '/' + matchPath)
+				))
 			)
 			const frontScript = fileName.slice(this.config.assetPath.length)
+				.replace(/^\/node_modules\/@itrocks\//, '/@itrocks/')
+				.replace(/^\/node_modules\//, '/lib/')
 			if (!this.config.frontScripts.includes(frontScript)) {
 				this.config.frontScripts.push(frontScript)
 			}
@@ -134,6 +144,8 @@ export class FastifyServer
 				const mimeType = mimeTypes.get(fileExtension)
 				if (mimeType) {
 					const fullPath = this.config.assetPath + filePath
+						.replace(/^\/@itrocks\//, '/node_modules/@itrocks/')
+						.replace(/^\/lib\//, '/node_modules/')
 					if (['js', 'ts'].includes(fileExtension) && !this.scannedFrontScripts.includes(fullPath)) {
 						this.scannedFrontScripts.push(fullPath)
 						await this.addImportsToFrontScripts(fullPath)
