@@ -30,6 +30,7 @@ export type FastifyConfig = {
 	port:         number
 	scriptCalls:  Array<string>
 	secret:       string
+	secure:       boolean | 'auto'
 	store:        SessionStore
 }
 
@@ -165,7 +166,7 @@ export class FastifyServer
 		server.register(fastifyFormbody, { parser: str => parse(str, { allowDots: true }) })
 		server.register(fastifyMultipart, { attachFieldsToBody: true, limits: { fileSize: 1e9 }})
 		server.register(fastifySession, {
-			cookie:            { maxAge: 30 * 24 * 60 * 60 * 1000, sameSite: 'strict', secure: false },
+			cookie:            { maxAge: 30 * 24 * 60 * 60 * 1000, sameSite: 'none', secure: this.config.secure },
 			cookieName:        'itrSid',
 			saveUninitialized: false,
 			secret:            this.config.secret,
