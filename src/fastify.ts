@@ -38,7 +38,7 @@ export async function fastifyRequest(request: FastifyRequest<{ Params: Record<st
 {
 	const data = Object.assign(
 		{},
-		request.isMultipart() ? await multiPartData(request.body) : request.body,
+		request.isMultipart() ? await multipartData(request.body) : request.body,
 		request.query
 	)
 	const params = { ...request.params }
@@ -192,15 +192,43 @@ export class FastifyServer
 
 }
 
-async function multiPartData(data: any)
+async function multipartData(data: any)
 {
 	const result = {} as RecursiveValueObject
 	for (const field of Object.values(data) as any) {
-		if (field.type === 'file') {
-			result[field.fieldname] = new RequestFile(field.filename, await field.toBuffer())
+		const [fieldname, value] = await multipartItem(field)
+		if (!(fieldname in result)) {
+			result[fieldname] = value
 			continue
 		}
-		result[field.fieldname] = field.value
+		if (!Array.isArray(result[fieldname])) {
+			result[fieldname] = [result[fieldname]]
+		}
+		if (Array.isArray(value)) {
+			result[fieldname].push(...value)
+			continue
+		}
+		result[fieldname].push(value)
 	}
 	return result
+}
+
+async function multipartItem(data: any)
+{
+	if (Array.isArray(data) && data.length) {
+		const fieldname = data[0].fieldname
+		const result    = []
+		for (const item of data) {
+			const [,value] = await multipartItem(item) as any
+			result.push(value)
+		}
+		return [fieldname, result]
+	}
+	if (typeof data === 'object') {
+		if (data.type === 'file') {
+			return [data.fieldname, new RequestFile(data.filename, await data.toBuffer())]
+		}
+		return [data.fieldname, data.value]
+	}
+	throw new Error('Unmanaged multipart entry ' + JSON.stringify(data))
 }
