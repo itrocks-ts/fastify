@@ -13,6 +13,7 @@ import { Response }             from '@itrocks/request-response'
 import { SortedArray }          from '@itrocks/sorted-array'
 import { fastify }              from 'fastify'
 import { FastifyError }         from 'fastify'
+import { FastifyInstance }      from 'fastify'
 import { FastifyReply }         from 'fastify'
 import { FastifyRequest }       from 'fastify'
 import { readFile }             from 'node:fs/promises'
@@ -72,6 +73,8 @@ export class FastifyServer
 {
 
 	scannedFrontScripts = new SortedArray<string>()
+
+	server?: FastifyInstance
 
 	constructor(public config: FastifyConfig)
 	{
@@ -160,7 +163,7 @@ export class FastifyServer
 
 	async run()
 	{
-		const server = fastify({ trustProxy: true })
+		const server = this.server = fastify({ trustProxy: true })
 
 		server.register(fastifyCookie)
 		server.register(fastifyFormbody, { parser: str => parse(str, { allowDots: true }) })
@@ -188,6 +191,12 @@ export class FastifyServer
 			+ ' ' + new Date().toTimeString().split(' ')[0]
 			+ ' - Server is listening on http://localhost:' + this.config.port
 		)
+	}
+
+	async stop()
+	{
+		await this.server?.close()
+		this.server = undefined
 	}
 
 }
