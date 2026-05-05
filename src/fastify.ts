@@ -50,7 +50,7 @@ export async function fastifyRequest(request: FastifyRequest<{ Params: Record<st
 		request.method as Method,
 		request.protocol,
 		request.hostname,
-		request.port,
+		request.port ?? 0,
 		path,
 		request.headers as Headers,
 		params,
