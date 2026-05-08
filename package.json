@@ -17,20 +17,17 @@
 	"devDependencies": {
 		"@types/node": "^24.10",
 		"@types/qs": "^6.14",
-		"typescript": "~5.9"
+		"typescript": "^6.0"
 	},
 	"engines": {
-		"node": ">=18"
+		"node": ">=24"
 	},
-	"exports": {
-		"import": "./esm/fastify.js",
-		"require": "./cjs/fastify.js"
-	},
+	"exports": "./cjs/fastify.js",
 	"files": [
 		"LICENSE",
 		"README.md",
-		"*/*.d.ts",
-		"*/*.js"
+		"cjs",
+		"!*.map"
 	],
 	"homepage": "https://it.rocks",
 	"keywords": [
@@ -53,10 +50,7 @@
 		"url": "git+https://github.com/itrocks-ts/fastify.git"
 	},
 	"scripts": {
-		"build": "npm run build:cjs && npm run build:esm",
-		"build:cjs": "tsc -p tsconfig.cjs.json",
-		"build:esm": "tsc -p tsconfig.esm.json"
+		"build": "tsc"
 	},
-	"types": "./esm/fastify.d.ts",
-	"version": "0.2.4"
+	"version": "0.2.5"
 }
