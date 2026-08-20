@@ -59,6 +59,7 @@ const config: FastifyConfig = {
   port: 3000,
   scriptCalls: [],
   secret: 'change-me-in-production-with-at-least-32-characters',
+  secure: 'auto',
   store: new FileStore('./sessions'),
 }
 
@@ -118,6 +119,7 @@ const config: FastifyConfig = {
   ],
   secret: process.env.SESSION_SECRET
     ?? 'replace-this-secret-in-production-with-a-long-random-string',
+  secure: 'auto',
   store: new FileStore(normalize(join(__dirname, '../data/sessions'))),
 }
 
@@ -161,14 +163,17 @@ Configuration object used to build a `FastifyServer` instance.
 ```ts
 type FastifyConfig = {
   assetPath: string
+  cookie?: CookieOptions
   execute: (request: Request) => Promise<Response>
   favicon: string
   frontScripts: string[]
   host: string
   manifest?: string
   port: number
+  rolling?: boolean
   scriptCalls: string[]
   secret: string
+  secure: boolean | 'auto'
   store: SessionStore
 }
 ```
@@ -178,6 +183,9 @@ type FastifyConfig = {
 - `assetPath` – absolute or normalised path to the directory that contains
   your static assets (HTML, CSS, JS, images…). All asset responses are resolved
   relative to this path.
+- `cookie` – optional `@fastify/session` cookie overrides. Generic defaults
+  remain `HttpOnly`, 30 days, and `SameSite=None`; application configuration
+  can override each value.
 - `execute` – asynchronous function that receives an
   `@itrocks/request-response` `Request` and must return a `Response`. This is
   where you plug in your it.rocks application logic.
@@ -191,15 +199,27 @@ type FastifyConfig = {
 - `manifest` – optional path to a web app manifest JSON file. When a request
   targets `/manifest.json`, this file is served instead.
 - `port` – TCP port on which Fastify will listen.
+- `rolling` – optional session rolling policy. When omitted, the
+  `@fastify/session` default is preserved. Set it explicitly to `false` for an
+  absolute cookie lifetime.
 - `scriptCalls` – array of function names used in your front‑end code to
   dynamically load additional scripts (for example `loadScript('/front/other.js')`).
   The server scans your entry scripts for occurrences of these calls to
   determine which additional assets must be exposed.
 - `secret` – secret string used to sign and encrypt session cookies for
   `@fastify/session`. Must be long and random in production.
+- `secure` – controls the cookie `Secure` attribute. With `'auto'`, Fastify
+  uses the effective request protocol. The server enables `trustProxy`, so a
+  local Apache or nginx TLS terminator must send `X-Forwarded-Proto: https`.
 - `store` – implementation of `SessionStore` used by `@fastify/session` to
   persist session data (for example a `FileStore` from
   `@itrocks/fastify-file-session-store`).
+
+`HttpOnly` only prevents front-end JavaScript from reading the session cookie;
+the browser still sends it automatically for same-origin page loads, `fetch`
+calls, service workers, and installed web applications. It can be explicitly
+overridden through `cookie.httpOnly` for a legacy integration, although session
+identifiers should normally remain inaccessible to scripts.
 
 ---
 

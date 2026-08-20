@@ -50,7 +50,8 @@
 		"url": "git+https://github.com/itrocks-ts/fastify.git"
 	},
 	"scripts": {
-		"build": "tsc"
+		"build": "tsc",
+		"test": "npm run build && node --test --test-isolation=none test/*.test.js"
 	},
-	"version": "0.2.6"
+	"version": "0.3.0"
 }

@@ -1,6 +1,7 @@
 import { fastifyCookie }        from '@fastify/cookie'
 import { fastifyFormbody }      from '@fastify/formbody'
 import { fastifyMultipart }     from '@fastify/multipart'
+import { CookieOptions }        from '@fastify/session'
 import { fastifySession }       from '@fastify/session'
 import { SessionStore }         from '@fastify/session'
 import { assetResponse }        from '@itrocks/request-response'
@@ -23,16 +24,41 @@ import { parse }                from 'qs'
 
 export type FastifyConfig = {
 	assetPath:    string
+	cookie?:      CookieOptions
 	execute:      (request: Request) => Promise<Response>
 	favicon:      string
 	frontScripts: Array<string>
 	host:         string
 	manifest?:    string
 	port:         number
+	rolling?:     boolean
 	scriptCalls:  Array<string>
 	secret:       string
 	secure:       boolean | 'auto'
 	store:        SessionStore
+}
+
+function sessionBridge(request: FastifyRequest)
+{
+	return new Proxy({}, {
+		deleteProperty: (_target, property) => request.session ? delete (request.session as any)[property] : true,
+		get:            (_target, property) => {
+			const session = request.session as any
+			const value   = session?.[property]
+			return (typeof value === 'function') ? value.bind(session) : value
+		},
+		getOwnPropertyDescriptor: (_target, property) => ({
+			configurable: true,
+			enumerable:   !!request.session && Object.prototype.propertyIsEnumerable.call(request.session, property)
+		}),
+		has:     (_target, property) => !!request.session && (property in request.session),
+		ownKeys: () => request.session ? Reflect.ownKeys(request.session) : [],
+		set:     (_target, property, value) => {
+			request.session ??= {} as any
+			(request.session as any)[property] = value
+			return true
+		}
+	})
 }
 
 export async function fastifyRequest(request: FastifyRequest<{ Params: Record<string, string> }>)
@@ -55,7 +81,7 @@ export async function fastifyRequest(request: FastifyRequest<{ Params: Record<st
 		request.headers as Headers,
 		params,
 		data,
-		request.session,
+		sessionBridge(request),
 		request
 	)
 }
@@ -161,7 +187,7 @@ export class FastifyServer
 		return fastifyResponse(finalResponse, await this.config.execute(request))
 	}
 
-	async run()
+	prepare()
 	{
 		const server = this.server = fastify({ trustProxy: true })
 
@@ -169,8 +195,15 @@ export class FastifyServer
 		server.register(fastifyFormbody, { parser: str => parse(str, { allowDots: true }) })
 		server.register(fastifyMultipart, { attachFieldsToBody: true, limits: { fileSize: 1e9 }})
 		server.register(fastifySession, {
-			cookie:            { maxAge: 30 * 24 * 60 * 60 * 1000, sameSite: 'none', secure: this.config.secure },
+			cookie:            {
+				httpOnly: true,
+				maxAge:   30 * 24 * 60 * 60 * 1000,
+				sameSite: 'none',
+				secure:   this.config.secure,
+				...this.config.cookie
+			},
 			cookieName:        'itrSid',
+			rolling:           this.config.rolling,
 			saveUninitialized: false,
 			secret:            this.config.secret,
 			store:             this.config.store
@@ -183,6 +216,12 @@ export class FastifyServer
 		server.put   ('/*', httpCall)
 
 		server.setErrorHandler(this.errorHandler)
+		return server
+	}
+
+	async run()
+	{
+		const server = this.prepare()
 
 		await server.listen({ host: this.config.host, port: this.config.port })
 
