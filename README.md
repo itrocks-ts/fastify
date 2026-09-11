@@ -298,7 +298,8 @@ started until you call `run()`.
 
 Internal helper that scans the JavaScript file at `fromScript` for `import`
 statements and configured `scriptCalls`, then ensures that all discovered
-scripts are present in `config.frontScripts`.
+scripts are present in `config.frontScripts`. References outside `assetPath`
+are ignored.
 
 You rarely need to call this method directly; it is mainly provided so that
 advanced integrations can reuse the asset‑scanning logic.

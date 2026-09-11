@@ -19,7 +19,11 @@ import { FastifyReply }         from 'fastify'
 import { FastifyRequest }       from 'fastify'
 import { readFile }             from 'node:fs/promises'
 import { dirname }              from 'node:path'
+import { isAbsolute }           from 'node:path'
 import { normalize }            from 'node:path'
+import { relative }             from 'node:path'
+import { resolve }              from 'node:path'
+import { sep }                  from 'node:path'
 import { parse }                from 'qs'
 
 export type FastifyConfig = {
@@ -108,29 +112,40 @@ export class FastifyServer
 
 	async addImportsToFrontScripts(fromScript: string)
 	{
-		const basePath = dirname(fromScript)
-		const content  = (await readFile(fromScript)).toString()
-		const matches  = [...content.matchAll(/from\s+['"](.+\.js)['"]/g)]
-		matches.push(...content.matchAll(/import\s+['"](.+\.js)['"]/g))
-		matches.push(...content.matchAll(/import\(['"](.+\.js)['"]\)/g))
+		const assetPath      = resolve(this.config.assetPath)
+		const contained      = (filePath: string) => {
+			const fromAssetPath = relative(assetPath, filePath)
+			return (fromAssetPath !== '..')
+				&& !fromAssetPath.startsWith('..' + sep)
+				&& !isAbsolute(fromAssetPath)
+		}
+		const fromScriptPath = resolve(fromScript)
+		if (!contained(fromScriptPath)) return
+		const basePath = dirname(fromScriptPath)
+		const content  = (await readFile(fromScriptPath)).toString()
+		const matches  = [...content.matchAll(/from\s+['"]([^'"]+\.js)['"]/g)]
+		matches.push(...content.matchAll(/import\s+['"]([^'"]+\.js)['"]/g))
+		matches.push(...content.matchAll(/import\(['"]([^'"]+\.js)['"]\)/g))
 		this.config.scriptCalls.forEach(scriptCall => {
-			matches.push(...content.matchAll(RegExp(scriptCall + '\\([\'"](.+\\.js)[\'"]', 'g')))
+			const escapedCall = scriptCall.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+			matches.push(...content.matchAll(RegExp(escapedCall + '\\([\'"]([^\'"]+\\.js)[\'"]', 'g')))
 		})
 		matches.forEach(match => {
 			const matchPath = match[1]
-			const fileName  = normalize(
+			const fileName  = resolve(normalize(
 				matchPath.startsWith('@itrocks/')
-					? (this.config.assetPath + '/' + matchPath)
+					? (assetPath + '/' + matchPath)
 					: (
-				matchPath.startsWith('/lib/')
-					? (this.config.assetPath + matchPath)
-					: (
-				matchPath.startsWith('/node_modules/')
-					? (this.config.assetPath + '/lib/' + matchPath.slice(14))
-					: (basePath + '/' + matchPath)
-				))
-			)
-			const frontScript = fileName.slice(this.config.assetPath.length)
+						matchPath.startsWith('/lib/')
+							? (assetPath + matchPath)
+							: (
+								matchPath.startsWith('/node_modules/')
+									? (assetPath + '/lib/' + matchPath.slice(14))
+									: (basePath + '/' + matchPath)
+					))
+			))
+			if (!contained(fileName)) return
+			const frontScript = fileName.slice(assetPath.length)
 				.replace(/^\/node_modules\/@itrocks\//, '/@itrocks/')
 				.replace(/^\/node_modules\//, '/lib/')
 			if (!this.config.frontScripts.includes(frontScript)) {
