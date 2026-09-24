@@ -21,6 +21,27 @@ afterEach(async () => {
 })
 
 describe('Fastify front script allowlist', () => {
+	it('serves only public asset types and configured scripts', async () => {
+		const assetPath = await mkdtemp(join(tmpdir(), 'itrocks-fastify-'))
+		temporaryDirectories.push(assetPath)
+		await mkdir(join(assetPath, 'app'), { recursive: true })
+		await Promise.all([
+			writeFile(join(assetPath, 'app', 'entry.js'), 'export const visible = true\n'),
+			writeFile(join(assetPath, 'app', 'entry.js.map'), '{"sourcesContent":["private"]}'),
+			writeFile(join(assetPath, 'app', 'style.css'), 'body {}'),
+			writeFile(join(assetPath, 'package.json'), '{"private":true}')
+		])
+		const delegated    = []
+		const frontScripts = ['/app/entry.js']
+		const server       = await frontServer(assetPath, delegated, frontScripts)
+
+		assert.equal((await server.server.inject({ method: 'GET', url: '/app/style.css' })).body, 'body {}')
+		assert.equal((await server.server.inject({ method: 'GET', url: '/app/entry.js' })).statusCode, 200)
+		assert.equal((await server.server.inject({ method: 'GET', url: '/app/entry.js.map' })).body, 'delegated')
+		assert.equal((await server.server.inject({ method: 'GET', url: '/package.json' })).body, 'delegated')
+		assert.deepEqual(delegated, ['/app/entry.js.map', '/package.json'])
+	})
+
 	it('discovers bounded imports and escaped configured calls inside the asset path', async () => {
 		const assetPath  = await mkdtemp(join(tmpdir(), 'itrocks-fastify-'))
 		const scriptPath = join(assetPath, 'front')
@@ -148,6 +169,45 @@ describe('Fastify front script allowlist', () => {
 })
 
 describe('Fastify session integration', () => {
+	it('rejects cross-origin mutations and adds configured response headers', async () => {
+		const server = new FastifyServer({
+			assetPath:   process.cwd(),
+			execute:     async () => new Response('ok'),
+			favicon:     '',
+			frontScripts: [],
+			headers:     { 'referrer-policy': 'no-referrer' },
+			host:        '127.0.0.1',
+			port:        0,
+			sameOrigin:  true,
+			scriptCalls: [],
+			secret:      'a-secure-test-secret-with-32-characters',
+			secure:      'auto',
+			store:       {
+				destroy: (_id, callback) => callback(),
+				get:     (_id, callback) => callback(null),
+				set:     (_id, _session, callback) => callback()
+			}
+		})
+		servers.push(server)
+		server.prepare()
+		await server.server.ready()
+
+		const crossOrigin = await server.server.inject({
+			headers: { origin: 'https://attacker.example' },
+			method:  'POST',
+			url:     '/private'
+		})
+		const sameOrigin = await server.server.inject({
+			headers: { host: 'folks.example', origin: 'http://folks.example' },
+			method:  'POST',
+			url:     '/private'
+		})
+
+		assert.equal(crossOrigin.statusCode, 404)
+		assert.equal(crossOrigin.headers['referrer-policy'], 'no-referrer')
+		assert.equal(sameOrigin.statusCode, 200)
+	})
+
 	it('keeps the transport-neutral session attached after regeneration', async () => {
 		const raw = {
 			body:        {},

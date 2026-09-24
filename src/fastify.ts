@@ -26,16 +26,20 @@ import { resolve }              from 'node:path'
 import { sep }                  from 'node:path'
 import { parse }                from 'qs'
 
+const publicAssetExtensions = new Set(['css', 'ico', 'jpg', 'png', 'svg', 'woff', 'woff2'])
+
 export type FastifyConfig = {
 	assetPath:    string
 	cookie?:      CookieOptions
 	execute:      (request: Request) => Promise<Response>
 	favicon:      string
 	frontScripts: Array<string>
+	headers?:      Headers
 	host:         string
 	manifest?:    string
 	port:         number
 	rolling?:     boolean
+	sameOrigin?:  boolean
 	scriptCalls:  Array<string>
 	secret:       string
 	secure:       boolean | 'auto'
@@ -99,6 +103,22 @@ export function fastifyResponse(fastifyResponse: FastifyReply, response: Respons
 	return fastifyResponse.send(response.body)
 }
 
+export function requestIsSameOrigin(request: FastifyRequest): boolean
+{
+	if (['GET', 'HEAD', 'OPTIONS'].includes(request.method)) return true
+	const origin = request.headers.origin
+	if (typeof origin === 'string') {
+		try {
+			const defaultPort = request.protocol === 'https' ? 443 : 80
+			const port        = request.port && (request.port !== defaultPort) ? `:${request.port}` : ''
+			return new URL(origin).origin === new URL(`${request.protocol}://${request.hostname}${port}`).origin
+		}
+		catch { return false }
+	}
+	const fetchSite = request.headers['sec-fetch-site']
+	return !fetchSite || ['none', 'same-origin'].includes(fetchSite)
+}
+
 export class FastifyServer
 {
 
@@ -156,16 +176,20 @@ export class FastifyServer
 
 	errorHandler(error: FastifyError, _request: FastifyRequest, reply: FastifyReply)
 	{
-		console.error(error)
+		console.error('[itrocks-fastify] Request failed', {
+			code:       error.code,
+			name:       error.name,
+			statusCode: error.statusCode
+		})
 		if (error.validation) {
-			reply.send({
+			reply.code(400).send({
 				error: 'Bad Request',
 				message: 'Invalid request.',
 				statusCode: 400
 			})
 		}
 		else {
-			reply.send({
+			reply.code(500).send({
 				error: 'Internal Server Error',
 				message: 'Something went wrong. We are working on it.',
 				statusCode: 500
@@ -175,22 +199,33 @@ export class FastifyServer
 
 	async httpCall(originRequest: FastifyRequest<{ Params: Record<string, string> }>, finalResponse: FastifyReply)
 	{
+		if (this.config.sameOrigin && !requestIsSameOrigin(originRequest)) {
+			return finalResponse.code(404).send({ error: 'resource_not_found' })
+		}
 		const request = await fastifyRequest(originRequest)
 		const dot     = request.path.lastIndexOf('.') + 1
 		if ((dot > request.path.length - 6) && !request.path.includes('./')) {
 			const fileExtension = request.path.substring(dot)
-			if (
-				!['js', 'ts'].includes(fileExtension)
-				|| request.path.startsWith('/front/')
-				|| this.config.frontScripts.includes(request.path)
-			) {
-				const filePath = (request.path === '/favicon.png') ? this.config.favicon :
-					((request.path === '/manifest.json') ? (this.config.manifest ?? request.path) : request.path)
+			const favicon = request.path === '/favicon.png'
+			const manifest = request.path === '/manifest.json' && !!this.config.manifest
+			const script = fileExtension === 'js' && (
+				request.path.startsWith('/front/') || this.config.frontScripts.includes(request.path)
+			)
+			if (favicon || manifest || script || publicAssetExtensions.has(fileExtension)) {
+				const filePath = favicon ? this.config.favicon : manifest ? this.config.manifest! : request.path
 				const mimeType = mimeTypes.get(fileExtension)
 				if (mimeType) {
-					const fullPath = this.config.assetPath + filePath
+					const assetPath = resolve(this.config.assetPath)
+					const assetFile = filePath
 						.replace(/^\/@itrocks\//, '/node_modules/@itrocks/')
 						.replace(/^\/lib\//, '/node_modules/')
+					const fullPath     = resolve(assetPath, '.' + assetFile)
+					const relativePath = relative(assetPath, fullPath)
+					if (
+						(relativePath === '..')
+						|| relativePath.startsWith('..' + sep)
+						|| isAbsolute(relativePath)
+					) return fastifyResponse(finalResponse, new Response('', 404))
 					if (['js', 'ts'].includes(fileExtension) && !this.scannedFrontScripts.includes(fullPath)) {
 						this.scannedFrontScripts.push(fullPath)
 						await this.addImportsToFrontScripts(fullPath)
@@ -222,6 +257,12 @@ export class FastifyServer
 			saveUninitialized: false,
 			secret:            this.config.secret,
 			store:             this.config.store
+		})
+		server.addHook('onSend', async (_request, reply, payload) => {
+			for (const [name, value] of Object.entries(this.config.headers ?? {})) {
+				if (!reply.hasHeader(name)) reply.header(name, value)
+			}
+			return payload
 		})
 
 		const httpCall = this.httpCall.bind(this)
