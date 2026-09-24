@@ -195,7 +195,7 @@ describe('Fastify session integration', () => {
 			url:     '/private'
 		})
 		const sameOrigin = await server.server.inject({
-			headers: { host: 'folks.example', origin: 'http://folks.example' },
+			headers: { host: 'folks.example:3000', origin: 'http://folks.example:3000' },
 			method:  'POST',
 			url:     '/private'
 		})

@@ -110,9 +110,7 @@ export function requestIsSameOrigin(request: FastifyRequest): boolean
 	const origin = request.headers.origin
 	if (typeof origin === 'string') {
 		try {
-			const defaultPort = request.protocol === 'https' ? 443 : 80
-			const port        = request.port && (request.port !== defaultPort) ? `:${request.port}` : ''
-			return new URL(origin).origin === new URL(`${request.protocol}://${request.hostname}${port}`).origin
+			return new URL(origin).origin === new URL(`${request.protocol}://${request.host}`).origin
 		}
 		catch { return false }
 	}
