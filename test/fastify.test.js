@@ -37,9 +37,9 @@ describe('Fastify front script allowlist', () => {
 
 		assert.equal((await server.server.inject({ method: 'GET', url: '/app/style.css' })).body, 'body {}')
 		assert.equal((await server.server.inject({ method: 'GET', url: '/app/entry.js' })).statusCode, 200)
-		assert.equal((await server.server.inject({ method: 'GET', url: '/app/entry.js.map' })).body, 'delegated')
-		assert.equal((await server.server.inject({ method: 'GET', url: '/package.json' })).body, 'delegated')
-		assert.deepEqual(delegated, ['/app/entry.js.map', '/package.json'])
+		assert.equal((await server.server.inject({ method: 'GET', url: '/app/entry.js.map' })).statusCode, 404)
+		assert.equal((await server.server.inject({ method: 'GET', url: '/package.json' })).statusCode, 404)
+		assert.deepEqual(delegated, [])
 	})
 
 	it('discovers bounded imports and escaped configured calls inside the asset path', async () => {
@@ -105,7 +105,7 @@ describe('Fastify front script allowlist', () => {
 			method: 'GET',
 			url:    '/@itrocks/lazy-test/child.js'
 		})
-		assert.equal(childBeforeEntry.body, 'delegated')
+		assert.equal(childBeforeEntry.statusCode, 404)
 
 		const entry = await server.server.inject({
 			method: 'GET',
@@ -119,7 +119,7 @@ describe('Fastify front script allowlist', () => {
 			method: 'GET',
 			url:    '/@itrocks/lazy-test/grandchild.js'
 		})
-		assert.equal(grandchildBeforeChild.body, 'delegated')
+		assert.equal(grandchildBeforeChild.statusCode, 404)
 
 		const child = await server.server.inject({
 			method: 'GET',
@@ -133,10 +133,7 @@ describe('Fastify front script allowlist', () => {
 			url:    '/@itrocks/lazy-test/grandchild.js'
 		})
 		assert.equal(grandchild.body, 'export const value = true\n')
-		assert.deepEqual(delegated, [
-			'/@itrocks/lazy-test/child.js',
-			'/@itrocks/lazy-test/grandchild.js'
-		])
+		assert.deepEqual(delegated, [])
 	})
 
 	it('ignores a source file outside the asset path', async () => {

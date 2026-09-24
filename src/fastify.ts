@@ -33,6 +33,7 @@ export type FastifyConfig = {
 	cookie?:      CookieOptions
 	execute:      (request: Request) => Promise<Response>
 	favicon:      string
+	fileSize?:    number
 	frontScripts: Array<string>
 	headers?:      Headers
 	host:         string
@@ -233,6 +234,9 @@ export class FastifyServer
 					return fastifyResponse(finalResponse, await assetResponse(request, fullPath, mimeType))
 				}
 			}
+			if (mimeTypes.has(fileExtension)) {
+				return fastifyResponse(finalResponse, new Response('', 404))
+			}
 		}
 		return fastifyResponse(finalResponse, await this.config.execute(request))
 	}
@@ -243,7 +247,10 @@ export class FastifyServer
 
 		server.register(fastifyCookie)
 		server.register(fastifyFormbody, { parser: str => parse(str, { allowDots: true }) })
-		server.register(fastifyMultipart, { attachFieldsToBody: true, limits: { fileSize: 1e9 }})
+		server.register(fastifyMultipart, {
+			attachFieldsToBody: true,
+			limits:             { fileSize: this.config.fileSize ?? 1e9 }
+		})
 		server.register(fastifySession, {
 			cookie:            {
 				httpOnly: true,
