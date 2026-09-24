@@ -108,13 +108,14 @@ export function requestIsSameOrigin(request: FastifyRequest): boolean
 {
 	if (['GET', 'HEAD', 'OPTIONS'].includes(request.method)) return true
 	const origin = request.headers.origin
+	const fetchSite = request.headers['sec-fetch-site']
 	if (typeof origin === 'string') {
+		if (origin === 'null') return fetchSite === 'same-origin'
 		try {
 			return new URL(origin).origin === new URL(`${request.protocol}://${request.host}`).origin
 		}
 		catch { return false }
 	}
-	const fetchSite = request.headers['sec-fetch-site']
 	return !fetchSite || ['none', 'same-origin'].includes(fetchSite)
 }
 

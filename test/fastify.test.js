@@ -199,9 +199,21 @@ describe('Fastify session integration', () => {
 			method:  'POST',
 			url:     '/private'
 		})
+		const opaqueSameOrigin = await server.server.inject({
+			headers: { origin: 'null', 'sec-fetch-site': 'same-origin' },
+			method:  'POST',
+			url:     '/private'
+		})
+		const opaqueCrossOrigin = await server.server.inject({
+			headers: { origin: 'null', 'sec-fetch-site': 'cross-site' },
+			method:  'POST',
+			url:     '/private'
+		})
 
 		assert.equal(crossOrigin.statusCode, 404)
 		assert.equal(crossOrigin.headers['referrer-policy'], 'no-referrer')
+		assert.equal(opaqueCrossOrigin.statusCode, 404)
+		assert.equal(opaqueSameOrigin.statusCode, 200)
 		assert.equal(sameOrigin.statusCode, 200)
 	})
 
