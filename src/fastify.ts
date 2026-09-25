@@ -107,14 +107,16 @@ export function fastifyResponse(fastifyResponse: FastifyReply, response: Respons
 export function requestIsSameOrigin(request: FastifyRequest): boolean
 {
 	if (['GET', 'HEAD', 'OPTIONS'].includes(request.method)) return true
-	const origin = request.headers.origin
+	const origin    = request.headers.origin
 	const fetchSite = request.headers['sec-fetch-site']
 	if (typeof origin === 'string') {
 		if (origin === 'null') return fetchSite === 'same-origin'
 		try {
 			return new URL(origin).origin === new URL(`${request.protocol}://${request.host}`).origin
 		}
-		catch { return false }
+		catch {
+			return false
+		}
 	}
 	return !fetchSite || ['none', 'same-origin'].includes(fetchSite)
 }
@@ -206,9 +208,9 @@ export class FastifyServer
 		const dot     = request.path.lastIndexOf('.') + 1
 		if ((dot > request.path.length - 6) && !request.path.includes('./')) {
 			const fileExtension = request.path.substring(dot)
-			const favicon = request.path === '/favicon.png'
-			const manifest = request.path === '/manifest.json' && !!this.config.manifest
-			const script = fileExtension === 'js' && (
+			const favicon  = request.path === '/favicon.png'
+			const manifest = (request.path === '/manifest.json') && !!this.config.manifest
+			const script   = fileExtension === 'js' && (
 				request.path.startsWith('/front/') || this.config.frontScripts.includes(request.path)
 			)
 			if (favicon || manifest || script || publicAssetExtensions.has(fileExtension)) {
