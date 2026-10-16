@@ -71,7 +71,8 @@ function sessionBridge(request: FastifyRequest, store?: SessionStore)
 		get:            (_target, property) => {
 			const session = request.session as any
 			if (property === 'reload' && store && 'refresh' in store) return (callback?: (error?: unknown) => void) => {
-				const operation = (store as TransactionStore).refresh!(session.sessionId, session)
+				const operation = sessionOperation(request, session, () =>
+					(store as TransactionStore).refresh!(session.sessionId, session))
 				if (callback) { void operation.then(() => callback(), callback); return }
 				return operation
 			}
@@ -92,9 +93,22 @@ function sessionBridge(request: FastifyRequest, store?: SessionStore)
 	})
 	if (store && ('transact' in store)) transactions.set(bridge, operation => {
 		if (!request.session) throw new Error('The request session has ended')
-		return (store as TransactionStore).transact(request.session.sessionId, request.session, operation)
+		const session = request.session
+		return sessionOperation(request, session, () =>
+			(store as TransactionStore).transact(session.sessionId, session, operation))
 	})
 	return bridge
+}
+
+/** Stop response autosave after the store rejects this request generation, preserving the caller's response. */
+async function sessionOperation<T>(request: FastifyRequest, session: object, operation: () => Promise<T>): Promise<T>
+{
+	try { return await operation() }
+	catch (error) {
+		if ((error as { code?: string } | null)?.code === 'SESSION_STALE' && request.session === session)
+			request.session = null as any
+		throw error
+	}
 }
 
 export async function fastifyRequest(

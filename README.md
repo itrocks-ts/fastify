@@ -361,7 +361,10 @@ operation to the current request, including after regeneration. No global sessio
 
 With a transaction-capable file store, response autosave merges changes made by this request into the newest snapshot.
 The store checks generations and expiry under the same lock as writes and revocation. Stale requests cannot revive a
-removed session. `reload()` uses the store's optional `refresh()` method, which rejects an ended session.
+removed session. When a transaction or refresh rejects with `SESSION_STALE`, the bridge detaches that request's
+ended session before rethrowing the error. Response autosave therefore preserves the caller's ended-session response
+without renewing its cookie. A concurrently regenerated session is retained, and other store errors still propagate.
+`reload()` uses the store's optional `refresh()` method, which rejects an ended session.
 
 `fastifyRequest(request, store?)` accepts the optional transaction-capable store when used outside `FastifyServer`.
 The server resolves configured browser script dependencies before serving requests, so cached parent modules do not
