@@ -47,12 +47,34 @@ export type FastifyConfig = {
 	store:        SessionStore
 }
 
-function sessionBridge(request: FastifyRequest)
+type Transaction = <T>(operation: (data: Record<string, any>) => T | Promise<T>) => Promise<T>
+type TransactionStore = SessionStore & {
+	refresh?(id: string, session: object): Promise<void>
+	transact<T>(id: string, session: object, operation: (data: Record<string, any>) => T | Promise<T>): Promise<T>
+}
+const transactions = new WeakMap<object, Transaction>()
+
+/** Execute against the authoritative session through the configured store, awaiting durable acknowledgement. */
+export function sessionTransaction<T>(
+	session: object, operation: (data: Record<string, any>) => T | Promise<T>
+): Promise<T>
 {
-	return new Proxy({}, {
+	const transaction = transactions.get(session)
+	if (!transaction) throw new Error('The request session does not support transactions')
+	return transaction(operation)
+}
+
+function sessionBridge(request: FastifyRequest, store?: SessionStore)
+{
+	const bridge = new Proxy({}, {
 		deleteProperty: (_target, property) => request.session ? delete (request.session as any)[property] : true,
 		get:            (_target, property) => {
 			const session = request.session as any
+			if (property === 'reload' && store && 'refresh' in store) return (callback?: (error?: unknown) => void) => {
+				const operation = (store as TransactionStore).refresh!(session.sessionId, session)
+				if (callback) { void operation.then(() => callback(), callback); return }
+				return operation
+			}
 			const value   = session?.[property]
 			return (typeof value === 'function') ? value.bind(session) : value
 		},
@@ -68,9 +90,16 @@ function sessionBridge(request: FastifyRequest)
 			return true
 		}
 	})
+	if (store && ('transact' in store)) transactions.set(bridge, operation => {
+		if (!request.session) throw new Error('The request session has ended')
+		return (store as TransactionStore).transact(request.session.sessionId, request.session, operation)
+	})
+	return bridge
 }
 
-export async function fastifyRequest(request: FastifyRequest<{ Params: Record<string, string> }>)
+export async function fastifyRequest(
+	request: FastifyRequest<{ Params: Record<string, string> }>, store?: SessionStore
+)
 {
 	const data = Object.assign(
 		{},
@@ -90,7 +119,7 @@ export async function fastifyRequest(request: FastifyRequest<{ Params: Record<st
 		request.headers as Headers,
 		params,
 		data,
-		sessionBridge(request),
+		sessionBridge(request, store),
 		request
 	)
 }
@@ -123,6 +152,8 @@ export function requestIsSameOrigin(request: FastifyRequest): boolean
 
 export class FastifyServer
 {
+
+	private discovery?: Promise<void>
 
 	scannedFrontScripts = new SortedArray<string>()
 
@@ -176,6 +207,22 @@ export class FastifyServer
 		})
 	}
 
+	private discoverFrontScripts(): Promise<void>
+	{
+		// Templates register entries dynamically. Resolve their graph even when cached parents skip HTTP entirely.
+		return this.discovery ??= (async () => {
+			while (true) {
+				const file = this.config.frontScripts.map(script => resolve(this.config.assetPath, '.' + script
+					.replace(/^\/@itrocks\//, '/node_modules/@itrocks/').replace(/^\/lib\//, '/node_modules/')))
+					.find(path => !this.scannedFrontScripts.includes(path))
+				if (!file) break
+				try { await this.addImportsToFrontScripts(file) }
+				catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error }
+				this.scannedFrontScripts.push(file)
+			}
+		})().finally(() => { this.discovery = undefined })
+	}
+
 	errorHandler(error: FastifyError, _request: FastifyRequest, reply: FastifyReply)
 	{
 		console.error('[itrocks-fastify] Request failed', {
@@ -204,7 +251,7 @@ export class FastifyServer
 		if (this.config.sameOrigin && !requestIsSameOrigin(originRequest)) {
 			return finalResponse.code(404).send({ error: 'resource_not_found' })
 		}
-		const request = await fastifyRequest(originRequest)
+		const request = await fastifyRequest(originRequest, this.config.store)
 		const dot     = request.path.lastIndexOf('.') + 1
 		if ((dot > request.path.length - 6) && !request.path.includes('./')) {
 			const fileExtension = request.path.substring(dot)
@@ -239,7 +286,9 @@ export class FastifyServer
 				return fastifyResponse(finalResponse, new Response('', 404))
 			}
 		}
-		return fastifyResponse(finalResponse, await this.config.execute(request))
+		const response = await this.config.execute(request)
+		await this.discoverFrontScripts()
+		return fastifyResponse(finalResponse, response)
 	}
 
 	prepare()
@@ -266,6 +315,7 @@ export class FastifyServer
 			secret:            this.config.secret,
 			store:             this.config.store
 		})
+		server.addHook('onReady', () => this.discoverFrontScripts())
 		server.addHook('onSend', async (_request, reply, payload) => {
 			for (const [name, value] of Object.entries(this.config.headers ?? {})) {
 				if (!reply.hasHeader(name)) reply.header(name, value)

@@ -351,3 +351,18 @@ startup fails.
 - **Custom Fastify integrations**: use `fastifyRequest` and `fastifyResponse`
   directly when you need full control over Fastify routes but still want to
   reuse existing it.rocks components.
+
+## Request session transactions
+
+`sessionTransaction(session, operation)` executes an operation against the authoritative session snapshot and waits for
+its durable save. Pass the transport-neutral request's `session` proxy. A configured store must implement
+`transact(sessionId, session, operation)`; an unsupported store produces an explicit error. The request bridge binds the
+operation to the current request, including after regeneration. No global session data is retained.
+
+With a transaction-capable file store, response autosave merges changes made by this request into the newest snapshot.
+The store checks generations and expiry under the same lock as writes and revocation. Stale requests cannot revive a
+removed session. `reload()` uses the store's optional `refresh()` method, which rejects an ended session.
+
+`fastifyRequest(request, store?)` accepts the optional transaction-capable store when used outside `FastifyServer`.
+The server resolves configured browser script dependencies before serving requests, so cached parent modules do not
+prevent their public imports from loading after a restart. Files outside the configured module graph remain unavailable.

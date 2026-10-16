@@ -86,7 +86,7 @@ describe('Fastify front script allowlist', () => {
 		])
 	})
 
-	it('discovers dependencies recursively as each allowed script is requested', async () => {
+	it('resolves recursive public dependencies before a restarted browser requests cached parents', async () => {
 		const assetPath  = await mkdtemp(join(tmpdir(), 'itrocks-fastify-'))
 		const scriptPath = join(assetPath, 'node_modules/@itrocks/lazy-test')
 		temporaryDirectories.push(assetPath)
@@ -105,7 +105,7 @@ describe('Fastify front script allowlist', () => {
 			method: 'GET',
 			url:    '/@itrocks/lazy-test/child.js'
 		})
-		assert.equal(childBeforeEntry.statusCode, 404)
+		assert.equal(childBeforeEntry.statusCode, 200)
 
 		const entry = await server.server.inject({
 			method: 'GET',
@@ -113,13 +113,13 @@ describe('Fastify front script allowlist', () => {
 		})
 		assert.equal(entry.body, "import './child.js'\n")
 		assert.equal(frontScripts.includes('/@itrocks/lazy-test/child.js'), true)
-		assert.equal(frontScripts.includes('/@itrocks/lazy-test/grandchild.js'), false)
+		assert.equal(frontScripts.includes('/@itrocks/lazy-test/grandchild.js'), true)
 
 		const grandchildBeforeChild = await server.server.inject({
 			method: 'GET',
 			url:    '/@itrocks/lazy-test/grandchild.js'
 		})
-		assert.equal(grandchildBeforeChild.statusCode, 404)
+		assert.equal(grandchildBeforeChild.statusCode, 200)
 
 		const child = await server.server.inject({
 			method: 'GET',
