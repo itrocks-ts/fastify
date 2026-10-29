@@ -25,6 +25,10 @@ course install and configure `fastify` directly in addition.
 
 ## Usage
 
+Session transactions and authoritative reloads use `sessionStoreId` when supplied by `@fastify/session`, falling back
+to `sessionId` for older versions. Regenerating the cookie generation therefore keeps both operations attached to the
+correct stored session.
+
 This package exposes two levels of API:
 
 - low‑level helpers (`fastifyRequest` and `fastifyResponse`) to convert between

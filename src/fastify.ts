@@ -54,6 +54,11 @@ type TransactionStore = SessionStore & {
 }
 const transactions = new WeakMap<object, Transaction>()
 
+function sessionStoreId(session: { sessionId: string; sessionStoreId?: string }): string
+{
+	return session.sessionStoreId ?? session.sessionId
+}
+
 /** Execute against the authoritative session through the configured store, awaiting durable acknowledgement. */
 export function sessionTransaction<T>(
 	session: object, operation: (data: Record<string, any>) => T | Promise<T>
@@ -72,7 +77,7 @@ function sessionBridge(request: FastifyRequest, store?: SessionStore)
 			const session = request.session as any
 			if (property === 'reload' && store && 'refresh' in store) return (callback?: (error?: unknown) => void) => {
 				const operation = sessionOperation(request, session, () =>
-					(store as TransactionStore).refresh!(session.sessionId, session))
+					(store as TransactionStore).refresh!(sessionStoreId(session), session))
 				if (callback) { void operation.then(() => callback(), callback); return }
 				return operation
 			}
@@ -95,7 +100,7 @@ function sessionBridge(request: FastifyRequest, store?: SessionStore)
 		if (!request.session) throw new Error('The request session has ended')
 		const session = request.session
 		return sessionOperation(request, session, () =>
-			(store as TransactionStore).transact(session.sessionId, session, operation))
+			(store as TransactionStore).transact(sessionStoreId(session), session, operation))
 	})
 	return bridge
 }

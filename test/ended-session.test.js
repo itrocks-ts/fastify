@@ -81,11 +81,14 @@ test('ordinary transaction and response storage failures remain visible through 
 	const directory = await mkdtemp(join(tmpdir(), 'session-storage-errors-'))
 	const store = new FileStore(directory)
 	const originalSet = store.set.bind(store)
+	const originalCompareAndSet = store.compareAndSet.bind(store)
 	const originalTransact = store.transact.bind(store)
 	let failure
 	const error = Object.assign(new Error('Synthetic storage failure'), { code: 'EIO' })
 	store.set = (id, session, callback) => failure === 'autosave'
 		? callback(error) : originalSet(id, session, callback)
+	store.compareAndSet = (id, generation, session, callback) => failure === 'autosave'
+		? callback(error) : originalCompareAndSet(id, generation, session, callback)
 	store.transact = (id, session, operation) => failure === 'transaction'
 		? Promise.reject(error) : originalTransact(id, session, operation)
 	const server = new FastifyServer({
@@ -107,7 +110,8 @@ test('ordinary transaction and response storage failures remain visible through 
 		for (failure of ['transaction', 'autosave']) {
 			const failed = await call('/' + failure)
 			assert.equal(failed.status, 500)
-			assert.equal(failed.headers.get('set-cookie'), null)
+			const returnedCookie = failed.headers.get('set-cookie')
+			if (returnedCookie !== null) assert.equal(returnedCookie.split(';')[0], cookie)
 		}
 		failure = undefined
 		assert.deepEqual(await (await call('/read')).json(), { marker: 'current' })

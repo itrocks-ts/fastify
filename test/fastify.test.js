@@ -1,3 +1,4 @@
+const { MemoryStore } = require('@fastify/session')
 const { Response }         = require('@itrocks/request-response')
 const assert               = require('node:assert/strict')
 const { mkdir, mkdtemp }   = require('node:fs/promises')
@@ -67,11 +68,7 @@ describe('Fastify front script allowlist', () => {
 			scriptCalls:  ['load.script'],
 			secret:       'a-secure-test-secret-with-32-characters',
 			secure:       'auto',
-			store:        {
-				destroy: (_id, callback) => callback(),
-				get:     (_id, callback) => callback(null),
-				set:     (_id, _session, callback) => callback()
-			}
+			store:        new MemoryStore()
 		})
 
 		await server.addImportsToFrontScripts(join(scriptPath, 'entry.js'))
@@ -152,11 +149,7 @@ describe('Fastify front script allowlist', () => {
 			scriptCalls:  [],
 			secret:       'a-secure-test-secret-with-32-characters',
 			secure:       'auto',
-			store:        {
-				destroy: (_id, callback) => callback(),
-				get:     (_id, callback) => callback(null),
-				set:     (_id, _session, callback) => callback()
-			}
+			store:        new MemoryStore()
 		})
 
 		await server.addImportsToFrontScripts(join(outsidePath, 'entry.js'))
@@ -179,11 +172,7 @@ describe('Fastify session integration', () => {
 			scriptCalls: [],
 			secret:      'a-secure-test-secret-with-32-characters',
 			secure:      'auto',
-			store:       {
-				destroy: (_id, callback) => callback(),
-				get:     (_id, callback) => callback(null),
-				set:     (_id, _session, callback) => callback()
-			}
+			store:       new MemoryStore()
 		})
 		servers.push(server)
 		server.prepare()
@@ -246,11 +235,7 @@ describe('Fastify session integration', () => {
 
 	it('sets expiring HttpOnly SameSite cookies and Secure over HTTPS', async () => {
 		const sessions = new Map()
-		const store    = {
-			destroy: (id, callback) => { sessions.delete(id); callback() },
-			get:     (id, callback) => callback(null, sessions.get(id)),
-			set:     (id, session, callback) => { sessions.set(id, session); callback() }
-		}
+		const store    = new MemoryStore(sessions)
 		const server = new FastifyServer({
 			assetPath:   process.cwd(),
 			cookie:      { maxAge: 8 * 60 * 60 * 1000, sameSite: 'lax' },
@@ -301,11 +286,7 @@ describe('Fastify session integration', () => {
 			scriptCalls: [],
 			secret:      'a-secure-test-secret-with-32-characters',
 			secure:      'auto',
-			store:       {
-				destroy: (id, callback) => { sessions.delete(id); callback() },
-				get:     (id, callback) => callback(null, sessions.get(id)),
-				set:     (id, session, callback) => { sessions.set(id, session); callback() }
-			}
+			store:       new MemoryStore(sessions)
 		})
 		servers.push(server)
 		server.prepare()
@@ -342,11 +323,7 @@ async function frontServer(assetPath, delegated, frontScripts)
 		scriptCalls: [],
 		secret:      'a-secure-test-secret-with-32-characters',
 		secure:      'auto',
-		store:       {
-			destroy: (_id, callback) => callback(),
-			get:     (_id, callback) => callback(null),
-			set:     (_id, _session, callback) => callback()
-		}
+		store:       new MemoryStore()
 	})
 	servers.push(server)
 	server.prepare()
