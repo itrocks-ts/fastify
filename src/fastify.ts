@@ -314,6 +314,16 @@ export class FastifyServer
 	{
 		const server = this.server = fastify({ trustProxy: true })
 
+		// Public assets finish before session loading and saving, even with an existing session cookie.
+		server.addHook('onRequest', async (request, reply) => {
+			if (!['GET', 'HEAD'].includes(request.method)) return
+			const path = '/' + (request.params as Record<string, string>)['*']
+			const dot = path.lastIndexOf('.') + 1
+			if ((dot > path.length - 6) && !path.includes('./') && mimeTypes.has(path.substring(dot))) {
+				return this.httpCall(request as FastifyRequest<{ Params: Record<string, string> }>, reply)
+			}
+		})
+
 		server.register(fastifyCookie)
 		server.register(fastifyFormbody, { parser: str => parse(str, { allowDots: true }) })
 		server.register(fastifyMultipart, {

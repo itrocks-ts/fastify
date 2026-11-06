@@ -159,6 +159,45 @@ describe('Fastify front script allowlist', () => {
 })
 
 describe('Fastify session integration', () => {
+	it('serves public assets without reading or writing the existing session', async () => {
+		const assetPath = await mkdtemp(join(tmpdir(), 'itrocks-fastify-'))
+		temporaryDirectories.push(assetPath)
+		await writeFile(join(assetPath, 'entry.js'), 'export const value = true')
+		await writeFile(join(assetPath, 'style.css'), 'body {}')
+		const store = new MemoryStore()
+		const server = new FastifyServer({
+			assetPath,
+			execute: async request => {
+				request.session.user = { id: 42 }
+				return new Response('ok')
+			},
+			favicon: '', frontScripts: ['/entry.js'], headers: { 'referrer-policy': 'no-referrer' },
+			host: '127.0.0.1', port: 0, scriptCalls: [],
+			secret: 'a-secure-test-secret-with-32-characters', secure: false, store
+		})
+		servers.push(server)
+		server.prepare()
+		await server.server.ready()
+		const login = await server.server.inject({ method: 'GET', url: '/private' })
+		const cookie = login.headers['set-cookie'].split(';')[0]
+		let reads = 0
+		let writes = 0
+		store.get = (_id, callback) => { reads ++; callback(new Error('Session must not be loaded')) }
+		store.set = (_id, _session, callback) => { writes ++; callback(new Error('Session must not be saved')) }
+		for (const method of ['GET', 'HEAD']) {
+			for (const url of ['/entry.js?v=1', '/style.css', '/missing.css', '/private.js', '/package.json']) {
+				const response = await server.server.inject({ headers: { cookie }, method, url })
+				assert.equal(response.statusCode, url.startsWith('/entry.js') || url === '/style.css' ? 200 : 404)
+				assert.equal(response.headers['set-cookie'], undefined)
+				assert.equal(response.headers['referrer-policy'], 'no-referrer')
+			}
+		}
+		assert.equal(reads, 0)
+		assert.equal(writes, 0)
+		assert.equal((await server.server.inject({ headers: { cookie }, method: 'GET', url: '/private' })).statusCode, 500)
+		assert.equal(reads, 1)
+	})
+
 	it('rejects cross-origin mutations and adds configured response headers', async () => {
 		const server = new FastifyServer({
 			assetPath:   process.cwd(),
