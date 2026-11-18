@@ -139,8 +139,30 @@ export async function fastifyRequest(
 		params,
 		data,
 		sessionBridge(request, store),
-		request
+		request,
+		forwardedPrefix(request)
 	)
+}
+
+function forwardedPrefix(request: FastifyRequest): string
+{
+	const prefix = request.headers['x-forwarded-prefix']
+	if (typeof prefix !== 'string') return ''
+	const path = prefix.replace(/\/+$/, '')
+	if (!path) return ''
+	if (!path.startsWith('/') || path.startsWith('//') || /[\s,"'<>\\?#]/.test(path)
+		|| (new URL(path, 'http://localhost').pathname !== path)) return ''
+	return path
+}
+
+function publicManifest(value: any, request: Request): any
+{
+	if (Array.isArray(value)) return value.map(item => publicManifest(item, request))
+	if (!value || (typeof value !== 'object')) return value
+	return Object.fromEntries(Object.entries(value).map(([name, item]) => [name,
+		(typeof item === 'string') && ['action', 'id', 'scope', 'src', 'start_url', 'url'].includes(name)
+			? request.publicUrl(item) : publicManifest(item, request)
+	]))
 }
 
 export function fastifyResponse(fastifyResponse: FastifyReply, response: Response)
@@ -298,7 +320,11 @@ export class FastifyServer
 						this.scannedFrontScripts.push(fullPath)
 						await this.addImportsToFrontScripts(fullPath)
 					}
-					return fastifyResponse(finalResponse, await assetResponse(request, fullPath, mimeType))
+					const response = await assetResponse(request, fullPath, mimeType)
+					if (manifest && request.basePath && (response.statusCode === 200)) {
+						response.body = JSON.stringify(publicManifest(JSON.parse(String(response.body)), request))
+					}
+					return fastifyResponse(finalResponse, response)
 				}
 			}
 			if (mimeTypes.has(fileExtension)) {
@@ -306,6 +332,9 @@ export class FastifyServer
 			}
 		}
 		const response = await this.config.execute(request)
+		for (const name of Object.keys(response.headers)) {
+			if (name.toLowerCase() === 'location') response.headers[name] = request.publicUrl(response.headers[name])
+		}
 		await this.discoverFrontScripts()
 		return fastifyResponse(finalResponse, response)
 	}
