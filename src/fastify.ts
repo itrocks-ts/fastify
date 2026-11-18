@@ -147,22 +147,35 @@ export async function fastifyRequest(
 function forwardedPrefix(request: FastifyRequest): string
 {
 	const prefix = request.headers['x-forwarded-prefix']
-	if (typeof prefix !== 'string') return ''
+	if (typeof prefix !== 'string') {
+		return ''
+	}
 	const path = prefix.replace(/\/+$/, '')
-	if (!path) return ''
-	if (!path.startsWith('/') || path.startsWith('//') || /[\s,"'<>\\?#]/.test(path)
-		|| (new URL(path, 'http://localhost').pathname !== path)) return ''
+	if (
+		!path || !path.startsWith('/') || path.startsWith('//') || /[\s,"'<>\\?#]/.test(path)
+		|| (new URL(path, 'http://localhost').pathname !== path)
+	) {
+		return ''
+	}
 	return path
 }
 
 function publicManifest(value: any, request: Request): any
 {
-	if (Array.isArray(value)) return value.map(item => publicManifest(item, request))
-	if (!value || (typeof value !== 'object')) return value
-	return Object.fromEntries(Object.entries(value).map(([name, item]) => [name,
-		(typeof item === 'string') && ['action', 'id', 'scope', 'src', 'start_url', 'url'].includes(name)
-			? request.publicUrl(item) : publicManifest(item, request)
-	]))
+	if (Array.isArray(value)) {
+		return value.map(item => publicManifest(item, request))
+	}
+	if (!value || (typeof value !== 'object')) {
+		return value
+	}
+	return Object.fromEntries(Object.entries(value).map(
+		([name, item]) => [
+			name,
+			(typeof item === 'string') && ['action', 'id', 'scope', 'src', 'start_url', 'url'].includes(name)
+				? request.publicUrl(item)
+				: publicManifest(item, request)
+		])
+	)
 }
 
 export function fastifyResponse(fastifyResponse: FastifyReply, response: Response)
@@ -333,7 +346,9 @@ export class FastifyServer
 		}
 		const response = await this.config.execute(request)
 		for (const name of Object.keys(response.headers)) {
-			if (name.toLowerCase() === 'location') response.headers[name] = request.publicUrl(response.headers[name])
+			if (name.toLowerCase() === 'location') {
+				response.headers[name] = request.publicUrl(response.headers[name])
+			}
 		}
 		await this.discoverFrontScripts()
 		return fastifyResponse(finalResponse, response)
