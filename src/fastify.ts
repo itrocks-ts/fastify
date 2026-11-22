@@ -284,7 +284,7 @@ export class FastifyServer
 			name:       error.name,
 			statusCode: error.statusCode
 		})
-		if (error.validation) {
+		if (error.validation || (error.code === 'FORM_LIMIT')) {
 			reply.code(400).send({
 				error: 'Bad Request',
 				message: 'Invalid request.',
@@ -369,7 +369,7 @@ export class FastifyServer
 		})
 
 		server.register(fastifyCookie)
-		server.register(fastifyFormbody, { parser: str => parse(str, { allowDots: true }) })
+		server.register(fastifyFormbody, { parser: formData })
 		server.register(fastifyMultipart, {
 			attachFieldsToBody: true,
 			limits:             { fileSize: this.config.fileSize ?? 1e9 }
@@ -427,9 +427,18 @@ export class FastifyServer
 
 }
 
+function formData(body: string)
+{
+	const parameterLimit = 1000
+	if (body.split('&', parameterLimit + 1).length > parameterLimit) {
+		throw Object.assign(new RangeError('Too many form fields'), { code: 'FORM_LIMIT', statusCode: 400 })
+	}
+	return parse(body, { allowDots: true, parameterLimit })
+}
+
 async function multipartData(data: any)
 {
-	const result = {} as RecursiveValueObject
+	const result: RecursiveValueObject = Object.create(null)
 	for (const field of Object.values(data) as any) {
 		const [fieldname, value] = await multipartItem(field)
 		if (!(fieldname in result)) {
@@ -445,7 +454,7 @@ async function multipartData(data: any)
 		}
 		result[fieldname].push(value)
 	}
-	return result
+	return parse(result as Record<string, string>, { allowDots: true }) as RecursiveValueObject
 }
 
 async function multipartItem(data: any)

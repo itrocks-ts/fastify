@@ -250,10 +250,10 @@ Converts a `FastifyRequest` instance into an `@itrocks/request-response`
 
 #### Behaviour
 
-- builds a new `Request` with the HTTP method, protocol, host, port, path,
-  headers, URL parameters and body data extracted from the Fastify request;
-- when the request is multipart, form fields and uploaded files are converted
-  into `RequestFile` objects from `@itrocks/request-response`.
+- Builds a new `Request` with the HTTP method, protocol, host, port, path, headers, URL parameters and body data.
+- Parses URL-encoded and multipart form fields with dotted names into nested objects. Multipart uploads are
+  `RequestFile` objects from `@itrocks/request-response`.
+- Rejects URL-encoded forms with more than 1,000 fields with HTTP 400.
 
 #### Return value
 
