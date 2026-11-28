@@ -163,7 +163,8 @@ app.all('/*', async (fastifyReq, fastifyReply) => {
 ### Reverse proxy subdirectories
 
 The trusted reverse proxy supplies `X-Forwarded-Prefix`, for example `/showtime`. Set or replace this header at the
-proxy. Both stripped and retained prefixes are accepted. The adapter exposes it as `request.basePath` and keeps
+proxy. By default, the proxy removes the mount prefix from the forwarded path. If the proxy forwards the full
+public path, set `proxyKeepsPrefix: true` on the server. The adapter exposes the prefix as `request.basePath` and keeps
 `request.path`, script discovery and `/@itrocks/` or `/lib/` file resolution application-relative.
 An absent or invalid prefix uses the origin root.
 
@@ -184,6 +185,7 @@ type FastifyConfig = {
   host: string
   manifest?: string
   port: number
+	proxyKeepsPrefix?: boolean
   rolling?: boolean
   scriptCalls: string[]
   secret: string

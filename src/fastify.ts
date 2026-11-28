@@ -29,30 +29,42 @@ import { parse }                from 'qs'
 const publicAssetExtensions = new Set(['css', 'ico', 'jpg', 'png', 'svg', 'woff', 'woff2'])
 
 export type FastifyConfig = {
-	assetPath:    string
-	cookie?:      CookieOptions
-	execute:      (request: Request) => Promise<Response>
-	favicon:      string
-	fileSize?:    number
-	frontScripts: Array<string>
-	headers?:      Headers
-	host:         string
-	manifest?:    string
-	port:         number
-	rolling?:     boolean
-	sameOrigin?:  boolean
-	scriptCalls:  Array<string>
-	secret:       string
-	secure:       boolean | 'auto'
-	store:        SessionStore
+	assetPath:         string
+	cookie?:           CookieOptions
+	execute:           (request: Request) => Promise<Response>
+	favicon:           string
+	fileSize?:         number
+	frontScripts:      Array<string>
+	headers?:           Headers
+	host:              string
+	manifest?:         string
+	port:              number
+	proxyKeepsPrefix?: boolean
+	rolling?:          boolean
+	sameOrigin?:       boolean
+	scriptCalls:       Array<string>
+	secret:            string
+	secure:            boolean | 'auto'
+	store:             SessionStore
 }
 
-type Transaction = <T>(operation: (data: Record<string, any>) => T | Promise<T>) => Promise<T>
+type Transaction      = <T>(operation: (data: Record<string, any>) => T | Promise<T>) => Promise<T>
 type TransactionStore = SessionStore & {
 	refresh?(id: string, session: object): Promise<void>
 	transact<T>(id: string, session: object, operation: (data: Record<string, any>) => T | Promise<T>): Promise<T>
 }
 const transactions = new WeakMap<object, Transaction>()
+
+function applicationPath(
+	request: FastifyRequest, prefix: string, proxyKeepsPrefix: boolean
+): string
+{
+	const path = '/' + (request.params as Record<string, string>)['*']
+	if (proxyKeepsPrefix && prefix && ((path === prefix) || path.startsWith(prefix + '/'))) {
+		return path.slice(prefix.length) || '/'
+	}
+	return path
+}
 
 function sessionStoreId(session: { sessionId: string; sessionStoreId?: string }): string
 {
@@ -117,30 +129,29 @@ async function sessionOperation<T>(request: FastifyRequest, session: object, ope
 }
 
 export async function fastifyRequest(
-	request: FastifyRequest<{ Params: Record<string, string> }>, store?: SessionStore
-)
-{
+	request: FastifyRequest<{ Params: Record<string, string> }>, store?: SessionStore, proxyKeepsPrefix = false
+) {
 	const data = Object.assign(
 		{},
 		request.isMultipart() ? await multipartData(request.body) : request.body,
 		request.query
 	)
 	const params = { ...request.params }
-	const path   = '/' + request.params['*']
 	delete params['*']
+	const prefix = forwardedPrefix(request)
 
 	return new Request(
 		request.method as Method,
 		request.protocol,
 		request.hostname,
 		request.port ?? 0,
-		path,
+		applicationPath(request, prefix, proxyKeepsPrefix),
 		request.headers as Headers,
 		params,
 		data,
 		sessionBridge(request, store),
 		request,
-		forwardedPrefix(request)
+		prefix
 	)
 }
 
@@ -305,7 +316,7 @@ export class FastifyServer
 		if (this.config.sameOrigin && !requestIsSameOrigin(originRequest)) {
 			return finalResponse.code(404).send({ error: 'resource_not_found' })
 		}
-		const request = await fastifyRequest(originRequest, this.config.store)
+		const request = await fastifyRequest(originRequest, this.config.store, this.config.proxyKeepsPrefix)
 		const dot     = request.path.lastIndexOf('.') + 1
 		if ((dot > request.path.length - 6) && !request.path.includes('./')) {
 			const fileExtension = request.path.substring(dot)
@@ -361,8 +372,8 @@ export class FastifyServer
 		// Public assets finish before session loading and saving, even with an existing session cookie.
 		server.addHook('onRequest', async (request, reply) => {
 			if (!['GET', 'HEAD'].includes(request.method)) return
-			const path = '/' + (request.params as Record<string, string>)['*']
-			const dot = path.lastIndexOf('.') + 1
+			const path = applicationPath(request, forwardedPrefix(request), this.config.proxyKeepsPrefix ?? false)
+			const dot  = path.lastIndexOf('.') + 1
 			if ((dot > path.length - 6) && !path.includes('./') && mimeTypes.has(path.substring(dot))) {
 				return this.httpCall(request as FastifyRequest<{ Params: Record<string, string> }>, reply)
 			}

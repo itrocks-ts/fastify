@@ -54,5 +54,5 @@
 		"build": "tsc",
 		"test": "npm run build && node --test --test-isolation=none test/*.test.js"
 	},
-	"version": "0.5.1"
+	"version": "1.0.0"
 }

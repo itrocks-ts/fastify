@@ -7,7 +7,8 @@ const { join } = require('node:path')
 const { it } = require('node:test')
 const { FastifyServer } = require('../cjs/fastify')
 
-it('serves mounted assets and keeps routes and script discovery application-relative', async () => {
+async function checkSubdirectory(proxyKeepsPrefix)
+{
 	const directory = await mkdtemp(join(tmpdir(), 'itrocks-subdirectory-'))
 	await mkdir(join(directory, 'node_modules/@itrocks/demo'), { recursive: true })
 	await mkdir(join(directory, 'node_modules/vendor'), { recursive: true })
@@ -26,35 +27,36 @@ it('serves mounted assets and keeps routes and script discovery application-rela
 			await new Promise(resolve => setImmediate(resolve))
 			return new Response(JSON.stringify({
 				basePath: request.basePath, path: request.path, publicUrl: request.url.pathname
-			}), 302, { Location: '/next' })
+			}), 302, { Location: '/ticket' })
 		},
 		favicon: '/icon.png', frontScripts, host: '127.0.0.1', manifest: '/manifest.json', port: 0,
-		scriptCalls: [], secret: 'a-secure-test-secret-with-32-characters', secure: 'auto', store: new MemoryStore()
+		proxyKeepsPrefix, scriptCalls: [],
+		secret: 'a-secure-test-secret-with-32-characters', secure: 'auto', store: new MemoryStore()
 	})
 	try {
 		const app = server.prepare()
 		for (const prefix of ['', '/showtime', '/nested/showtime']) {
 			const headers = prefix ? { 'x-forwarded-prefix': prefix + '/' } : {}
-			const manifest = (await app.inject({ headers, url: '/manifest.json' })).json()
+			const path = proxyKeepsPrefix ? prefix : ''
+			const manifest = (await app.inject({ headers, url: path + '/manifest.json' })).json()
 			assert.equal(manifest.start_url, prefix + '/')
 			assert.equal(manifest.scope, prefix + '/')
 			assert.equal(manifest.icons[0].src, prefix + '/icon.png')
 			assert.equal(manifest.shortcuts[0].url, prefix + '/movie')
 			assert.equal(manifest.shortcuts[0].icons[0].src, prefix + '/icon.png')
 			assert.equal(manifest.name, '/unchanged')
-			for (const retained of prefix ? [false, true] : [false]) {
-				const path = retained ? prefix : ''
-				for (const asset of ['/@itrocks/demo/child.js', '/lib/vendor/theme.css', '/favicon.png']) {
-					const response = await app.inject({ headers, url: path + asset })
-					assert.equal(response.statusCode, 200, `${prefix}: ${asset}`)
-				}
-				assert.equal((await app.inject({ headers, url: path + '/package.json' })).statusCode, 404)
+			for (const asset of ['/@itrocks/demo/child.js', '/lib/vendor/theme.css', '/favicon.png']) {
+				const response = await app.inject({ headers, url: path + asset })
+				assert.equal(response.statusCode, 200, `${prefix}: ${asset}`)
 			}
+			assert.equal((await app.inject({ headers, url: path + '/package.json' })).statusCode, 404)
 		}
-		const requests = ['', '/showtime', '/nested/showtime'].map(async basePath => {
-			const response = await app.inject({ headers: { 'x-forwarded-prefix': basePath }, url: '/movie' })
-			assert.deepEqual(response.json(), { basePath, path: '/movie', publicUrl: basePath + '/movie' })
-			assert.equal(response.headers.location, basePath + '/next')
+		const requests = ['', '/showtime', '/nested/showtime', '/ticket'].map(async basePath => {
+			const path = '/ticket'
+			const url = (proxyKeepsPrefix ? basePath : '') + path
+			const response = await app.inject({ headers: { 'x-forwarded-prefix': basePath }, url })
+			assert.deepEqual(response.json(), { basePath, path, publicUrl: basePath + path })
+			assert.equal(response.headers.location, basePath + '/ticket')
 		})
 		await Promise.all(requests)
 		assert.ok(frontScripts.includes('/@itrocks/demo/child.js'))
@@ -68,4 +70,9 @@ it('serves mounted assets and keeps routes and script discovery application-rela
 		await server.stop()
 		await rm(directory, { force: true, recursive: true })
 	}
-})
+}
+
+for (const proxyKeepsPrefix of [false, true]) {
+	it(`serves mounted assets and routes with proxyKeepsPrefix=${proxyKeepsPrefix}`,
+		() => checkSubdirectory(proxyKeepsPrefix))
+}
